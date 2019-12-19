@@ -15,7 +15,7 @@ COPY . /app
 
 EXPOSE 4000/tcp
 
-ENTRYPOINT [ "gunicorn3" ]
+ENTRYPOINT [ "/bin/bash" ]
 
-CMD [ "-w 4", "-b 0.0.0.0:4000", "-k gevent", "app:app" ]
+CMD [ "launcher.sh" ]
 
