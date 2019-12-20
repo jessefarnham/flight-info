@@ -42,10 +42,12 @@ class PlaneStatus(persistent.Persistent):
 
 @app.route('/')
 def hello_world():
-    if not root['plane_status']:
+    try:
+        root.plane_status
+    except AttributeError:
         log.info('Could not find plane_status, setting to not flying')
         set_not_flying()
-    is_flying = root['plane_status'].is_flying
+    is_flying = root.plane_status.is_flying
     if is_flying:
         return 'Jesse is flying! Yay!'
     else:
@@ -54,13 +56,15 @@ def hello_world():
 
 @app.route('/set-flying')
 def set_flying():
-    root['plane_status'] = PlaneStatus(is_flying=True)
+    root.plane_status = PlaneStatus(is_flying=True)
     transaction.commit()
+    return 'Set to flying'
 
 @app.route('/set-not-flying')
 def set_not_flying():
-    root['plane_status'] = PlaneStatus(is_flying=False)
+    root.plane_status = PlaneStatus(is_flying=False)
     transaction.commit()
+    return 'Set to not flying'
 
 
 if __name__ == '__main__':
