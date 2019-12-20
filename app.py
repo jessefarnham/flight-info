@@ -7,17 +7,15 @@ import persistent
 import transaction
 from typing import Tuple
 import ZEO
-import ZODB, ZODB.FileStorage
+
+
+ZEO_PORT = 8090
 
 
 app = Flask(__name__)
 
 
-log = logging.getLogger()
-
-
-conn = ZEO.connection(8090)
-root = conn.root()
+log = app.logger
 
 
 class PlaneStatus(persistent.Persistent):
@@ -42,29 +40,36 @@ class PlaneStatus(persistent.Persistent):
 
 @app.route('/')
 def hello_world():
+    con = ZEO.connection(ZEO_PORT)
+    root = con.root()
+    print(root)
     try:
         root.plane_status
     except AttributeError:
         log.info('Could not find plane_status, setting to not flying')
-        set_not_flying()
+        return 'Cannot find status.\n'
     is_flying = root.plane_status.is_flying
     if is_flying:
-        return 'Jesse is flying! Yay!'
+        return 'Jesse is flying! Yay!\n'
     else:
-        return 'Jesse is not flying... sad...'
+        return 'Jesse is not flying... sad...\n'
 
 
 @app.route('/set-flying')
 def set_flying():
+    con = ZEO.connection(ZEO_PORT)
+    root = con.root()
     root.plane_status = PlaneStatus(is_flying=True)
     transaction.commit()
-    return 'Set to flying'
+    return 'Set to flying\n'
 
 @app.route('/set-not-flying')
 def set_not_flying():
+    con = ZEO.connection(ZEO_PORT)
+    root = con.root()
     root.plane_status = PlaneStatus(is_flying=False)
     transaction.commit()
-    return 'Set to not flying'
+    return 'Set to not flying\n'
 
 
 if __name__ == '__main__':
