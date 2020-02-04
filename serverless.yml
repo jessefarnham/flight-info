@@ -1,0 +1,135 @@
+app: website
+org: jessefarnham
+service: website
+
+custom:
+  auth: ${file(./auth.yml)}
+
+provider:
+    name: aws
+    runtime: nodejs12.x
+    environment:
+      aircraftTableName: aircraft
+      pollerTableName: pollerConfig
+      flightXmlAuth: ${self:custom.auth.flightXmlAuth}
+    iamRoleStatements:
+      - Effect: Allow
+        Action:
+          - dynamodb:Query
+          - dynamodb:Scan
+          - dynamodb:GetItem
+          - dynamodb:PutItem
+          - dynamodb:UpdateItem
+          - dynamodb:DeleteItem
+        Resource:
+          - {"Fn::GetAtt": ['AircraftDbTable', 'Arn']}
+          - {"Fn::GetAtt": ['PollerDbTable', 'Arn']}
+
+functions:
+    updateFlightInfo:
+        memory: 512
+        timeout: 10
+        handler: code/flightinfo.update
+        runtime: nodejs12.x
+        events:
+            - http:
+                path: flightinfo
+                method: post
+                cors: true
+    getFlightInfo:
+      memory: 512
+      timeout: 10
+      handler: code/flightinfo.get
+      runtime: nodejs12.x
+      events:
+        - http:
+            path: flightinfo/tailnumber/{tailNumber}
+            method: get
+            cors: true
+    listFlightInfos:
+      memory: 512
+      timeout: 10
+      handler: code/flightinfo.list
+      runtime: nodejs12.x
+      events:
+        - http:
+            path: flightinfo
+            method: get
+            cors: true
+    poll:
+      memory: 512
+      timeout: 10
+      handler: code/flightinfo.poll
+      runtime: nodejs12.x
+      events:
+        - schedule: rate(1 minute)
+    setActiveTailNumber:
+      memory: 512
+      timeout: 10
+      handler: code/flightinfo.setActiveTailNumber
+      runtime: nodejs12.x
+      events:
+        - http:
+            path: flightinfo/active/tailnumber/{tailNumber}
+            method: put
+            cors: true
+    getActiveFlightInfo:
+      memory: 512
+      timeout: 10
+      handler: code/flightinfo.getActiveFlightInfo
+      events:
+        - http:
+            path: flightinfo/active
+            method: get
+            cors: true
+    startPolling:
+      memory: 512
+      timeout: 10
+      handler: code/flightinfo.startPolling
+      runtime: nodejs12.x
+      events:
+        - http:
+            path: flightinfo/start
+            method: post
+            cors: true
+    setConfig:
+      memory: 512
+      timeout: 10
+      handler: code/flightinfo.setConfig
+      runtime: nodejs12.x
+      events:
+        - http:
+            path: flightinfo/config
+            method: post
+            cors: true
+
+resources:
+  Resources:
+    AircraftDbTable:
+      Type: 'AWS::DynamoDB::Table'
+      DeletionPolicy: Retain
+      Properties:
+        AttributeDefinitions:
+          - AttributeName: tailNumber
+            AttributeType: S
+        KeySchema:
+          - AttributeName: tailNumber
+            KeyType: HASH
+        TableName: ${self:provider.environment.aircraftTableName}
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
+    PollerDbTable:
+      Type: 'AWS::DynamoDB::Table'
+      DeletionPolicy: Retain
+      Properties:
+        AttributeDefinitions:
+          - AttributeName: configKey
+            AttributeType: S
+        KeySchema:
+          - AttributeName: configKey
+            KeyType: HASH
+        TableName: ${self:provider.environment.pollerTableName}
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1

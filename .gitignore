@@ -1,2 +1,22 @@
-__pycache__
+# Logs
+logs
+*.Logs
+
+# Compiled directory and file
+build/
+bundle.js
+
+# Dependency directories
+node_modules/
+package-lock.json
+
 *.swp
+
+.idea/
+
+state.json
+
+.serverless/
+
+auth.yml
+auth.sh
