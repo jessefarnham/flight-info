@@ -231,7 +231,7 @@ function poll(evt, ctx, cb) {
                 cb(err)
             }
             else {
-                console.log('poll(), current config settings=' + JSON.stringify(data);
+                console.log('poll(), current config settings=' + JSON.stringify(data));
                 const activeTailNumber = data[activeTailNumberKey] || defaultTailNumber;
                 const prevNumMisses = data[numMissesKey] || 0;
                 if (prevNumMisses < maxMisses) {
