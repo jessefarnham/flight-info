@@ -92,6 +92,16 @@ functions:
             path: flightinfo/start
             method: post
             cors: true
+    stopPolling:
+      memory: 512
+      timeout: 10
+      handler: code/flightinfo.stopPolling
+      runtime: nodejs12.x
+      events:
+        - http:
+            path: flightinfo/stop
+            method: post
+            cors: true
     setConfig:
       memory: 512
       timeout: 10

@@ -206,7 +206,7 @@ function postFlightXmlCallback(flightXmlResult, activeTailNumber, cb) {
     _update(payload, callback)
 }
 
-function poll(evt, ctx, cb) {
+function _getConfig(cb) {
     dynamo.get(
         {
             Key: {
@@ -219,24 +219,36 @@ function poll(evt, ctx, cb) {
                 cb(err)
             }
             else {
-                console.log('poll(), current config settings=' + JSON.stringify(data.Item))
-                const activeTailNumber = data.Item[activeTailNumberKey] || defaultTailNumber
-                const prevNumMisses = data.Item[numMissesKey] || 0
-                if (prevNumMisses < maxMisses) {
-                    console.log('poll(), calling updateWithFlightXml');
-                    _updateWithFlightXml(activeTailNumber, data.Item[useMockFlightXmlKey], cb)
-                }
-                else {
-                    console.log('poll(), no-op')
-                    cb(null, 'no-op, awaiting next startPolling call')
-                }
+                cb(null, data.Item);
             }
         }
     )
 }
 
+function poll(evt, ctx, cb) {
+    _getConfig((err, data) => {
+            if (err) {
+                cb(err)
+            }
+            else {
+                console.log('poll(), current config settings=' + JSON.stringify(data);
+                const activeTailNumber = data[activeTailNumberKey] || defaultTailNumber;
+                const prevNumMisses = data[numMissesKey] || 0;
+                if (prevNumMisses < maxMisses) {
+                    console.log('poll(), calling updateWithFlightXml');
+                    _updateWithFlightXml(activeTailNumber, data.Item[useMockFlightXmlKey], cb)
+                }
+                else {
+                    console.log('poll(), no-op');
+                    cb(null, 'no-op, awaiting next startPolling call')
+                }
+            }
+        }
+    );
+}
+
 function setActiveTailNumber(evt, ctx, cb) {
-    const tailNumber = evt.pathParameters.tailNumber
+    const tailNumber = evt.pathParameters.tailNumber;
     dynamo.update({
             Key: {configKey: configKey},
             UpdateExpression: `SET ${activeTailNumberKey} = :t`,
@@ -270,17 +282,36 @@ function startPolling(evt, ctx, cb) {
     _resetNumMisses(cb)
 }
 
-function _resetNumMisses(cb) {
+function stopPolling(evt, ctx, cb) {
+    console.log('stopPolling');
+    _getConfig((err, config) => {
+            if (err) {
+                cb(err)
+            }
+            else {
+                _resetNumMisses((err, data) => {
+                    if (err) {
+                        cb(err)
+                    }
+                    else {
+                        postFlightXmlCallback(emptyMockData, config[activeTailNumberKey], cb)
+                    }
+                })
+            }
+        }
+    );
+}
+
+function _resetNumMisses(cb, newValue=0) {
     console.log('resetNumMisses()')
     dynamo.update({
             Key: {configKey: configKey},
             UpdateExpression: `SET ${numMissesKey} = :n`,
-            ExpressionAttributeValues: {':n': 0},
+            ExpressionAttributeValues: {':n': newValue},
             TableName: pollerTableName},
         cb
     )
 }
-
 
 function _incrementNumMisses(cb) {
     console.log('incrementNumMisses()')
@@ -311,6 +342,7 @@ module.exports = {
     getActiveFlightInfo,
     setActiveTailNumber,
     startPolling,
+    stopPolling,
     setConfig
-}
+};
 
