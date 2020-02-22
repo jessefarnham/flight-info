@@ -236,7 +236,7 @@ function poll(evt, ctx, cb) {
                 const prevNumMisses = data[numMissesKey] || 0;
                 if (prevNumMisses < maxMisses) {
                     console.log('poll(), calling updateWithFlightXml');
-                    _updateWithFlightXml(activeTailNumber, data.Item[useMockFlightXmlKey], cb)
+                    _updateWithFlightXml(activeTailNumber, data[useMockFlightXmlKey], cb)
                 }
                 else {
                     console.log('poll(), no-op');
@@ -296,7 +296,7 @@ function stopPolling(evt, ctx, cb) {
                     else {
                         postFlightXmlCallback(emptyMockData, config[activeTailNumberKey], cb)
                     }
-                })
+                }, maxMisses)
             }
         }
     );
