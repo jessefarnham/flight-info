@@ -166,7 +166,7 @@ resources:
         KeySchema:
           - AttributeName: track
             KeyType: HASH
-        TableName: ${self:provider:environment.lastTrackTableName}
+        TableName: ${self:provider.environment.lastTrackTableName}
         ProvisionedThroughput:
           ReadCapacityUnits: 1
-          WriteCapacityunits: 1
+          WriteCapacityUnits: 1

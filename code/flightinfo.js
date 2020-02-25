@@ -1,7 +1,7 @@
 
 const AWS = require('aws-sdk');
 const https = require('https');
-const mockHistoricalTrackResult = require('mockHistoricalTrackResult');
+const mockHistoricalTrackResult = require('./mockHistoricalTrackResult');
 
 const dynamo = new AWS.DynamoDB.DocumentClient({region: 'us-east-1'});
 
@@ -203,7 +203,7 @@ function _saveLastTrack(payload, useMock, cb) {
     let historicalTrackResult;
     let err;
     if (useMock) {
-        historicalTrackResult = mockHistoricalTrackResult;
+        historicalTrackResult = mockHistoricalTrackResult.mockResult;
     }
     else {
         const params = {
@@ -239,6 +239,12 @@ function _saveLastTrack(payload, useMock, cb) {
     }
     else {
         historicalTrackResult[trackKey] = trackValue;
+        for (let i = 0; i <  historicalTrackResult.GetHistoricalTrackResult.data.length; i++) {
+            delete historicalTrackResult.GetHistoricalTrackResult.data[i].altitudeStatus;
+            delete historicalTrackResult.GetHistoricalTrackResult.data[i].altitudeChange;
+        }
+        console.log(JSON.stringify(historicalTrackResult));
+        console.log(lastTrackTableName);
         dynamo.put({
                 Item: historicalTrackResult,
                 TableName: lastTrackTableName
@@ -261,8 +267,9 @@ function _setToNotFlying(activeTailNumber, useMock, cb) {
                 cb(err)
             }
             else {
-                let payload = lastPayload;
+                let payload = lastPayload.Item;
                 payload.isFlying = false;
+                console.log('payload=' + JSON.stringify(payload));
                 let callback = function(err, _) {
                     if (err){
                         cb(err)
