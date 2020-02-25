@@ -14,6 +14,8 @@ const numMissesKey = 'numMisses';
 const activeTailNumberKey = 'activeTailNumber';
 const useMockFlightXmlKey = 'useMockFlightXml';
 
+const epsilon = 1e-6;
+
 
 const mockData = {
     "InFlightInfoResult": {
@@ -95,12 +97,12 @@ function respondHttp(cb, extractor) {
 }
 
 function update(evt, ctx, cb) {
-    let item = JSON.parse(evt.body)
+    let item = JSON.parse(evt.body);
     _update(item, cb)
 }
 
 function _update(item, cb) {
-    console.log('update(), item=' + JSON.stringify(item))
+    console.log('update(), item=' + JSON.stringify(item));
     dynamo.put({
             Item: item,
             TableName: aircraftTableName},
@@ -174,36 +176,63 @@ function _updateWithFlightXml(activeTailNumber, useMock, cb) {
     }
 }
 
-function postFlightXmlCallback(flightXmlResult, activeTailNumber, cb) {
-    let payload;
-    let numMissOperation;
-    if (flightXmlResult.latitude && flightXmlResult.longitude) {
-        console.log('Aircraft is flying');
-        payload = {
-            tailNumber: flightXmlResult.ident, isFlying: true,
-            lat: flightXmlResult.latitude, long: flightXmlResult.longitude,
-            altitude: flightXmlResult.altitude,
-            heading: flightXmlResult.heading,
-            groundspeed: flightXmlResult.groundspeed
-        };
-        numMissOperation = _resetNumMisses
+function _checkStaleData(flightXmlResult, lastPayload) {
+    if (typeof lastPayload.Item === 'undefined') {
+        return false
     }
     else {
-        console.log('Aircraft not flying');
-        payload = {tailNumber: activeTailNumber, isFlying: false,
-            lat: null, long: null};
-        numMissOperation = _incrementNumMisses
+        return (Math.abs(lastPayload.Item.lat - flightXmlResult.latitude) < epsilon &&
+                Math.abs(lastPayload.Item.long - flightXmlResult.longitude) < epsilon)
     }
-    let callback = function(err, updateResp) {
-        if (err){
-            _incrementNumMisses(cb);
-            cb(err)
+}
+
+function postFlightXmlCallback(flightXmlResult, activeTailNumber, cb) {
+    dynamo.get(
+        {
+            Key: {
+                tailNumber: activeTailNumber
+            },
+            TableName: aircraftTableName
+        },
+        (err, lastPayload) => {
+            if (err) {
+                cb(err)
+            }
+            else {
+                let payload;
+                let numMissOperation;
+                if (flightXmlResult.latitude && flightXmlResult.longitude) {
+                    console.log('Aircraft is flying');
+                    let stale = _checkStaleData(flightXmlResult, lastPayload);
+                    payload = {
+                        tailNumber: flightXmlResult.ident, isFlying: true,
+                        lat: flightXmlResult.latitude, long: flightXmlResult.longitude,
+                        altitude: flightXmlResult.altitude,
+                        heading: flightXmlResult.heading,
+                        groundspeed: flightXmlResult.groundspeed,
+                        isStale: stale
+                    };
+                    numMissOperation = _resetNumMisses
+                }
+                else {
+                    console.log('Aircraft not flying');
+                    payload = {tailNumber: activeTailNumber, isFlying: false,
+                        lat: null, long: null};
+                    numMissOperation = _incrementNumMisses
+                }
+                let callback = function(err, _) {
+                    if (err){
+                        _incrementNumMisses(cb);
+                        cb(err)
+                    }
+                    else {
+                        numMissOperation(cb);
+                    }
+                };
+                _update(payload, callback)
+            }
         }
-        else {
-            numMissOperation(cb);
-        }
-    };
-    _update(payload, callback)
+    )
 }
 
 function _getConfig(cb) {
@@ -278,7 +307,7 @@ function getActiveFlightInfo(evt, ctx, cb) {
 }
 
 function startPolling(evt, ctx, cb) {
-    console.log('startPolling')
+    console.log('startPolling');
     _resetNumMisses(cb)
 }
 
@@ -289,7 +318,7 @@ function stopPolling(evt, ctx, cb) {
                 cb(err)
             }
             else {
-                _resetNumMisses((err, data) => {
+                _resetNumMisses((err, _) => {
                     if (err) {
                         cb(err)
                     }
@@ -303,7 +332,7 @@ function stopPolling(evt, ctx, cb) {
 }
 
 function _resetNumMisses(cb, newValue=0) {
-    console.log('resetNumMisses()')
+    console.log('resetNumMisses()');
     dynamo.update({
             Key: {configKey: configKey},
             UpdateExpression: `SET ${numMissesKey} = :n`,
@@ -314,7 +343,7 @@ function _resetNumMisses(cb, newValue=0) {
 }
 
 function _incrementNumMisses(cb) {
-    console.log('incrementNumMisses()')
+    console.log('incrementNumMisses()');
     dynamo.update({
             Key: {configKey: configKey},
             UpdateExpression: `SET ${numMissesKey} = ${numMissesKey} + :n`,
@@ -325,8 +354,8 @@ function _incrementNumMisses(cb) {
 }
 
 function setConfig(evt, ctx, cb) {
-    let item = JSON.parse(evt.body)
-    item.configKey = configKey
+    let item = JSON.parse(evt.body);
+    item.configKey = configKey;
     dynamo.put({
             Item: item,
             TableName: pollerTableName},
