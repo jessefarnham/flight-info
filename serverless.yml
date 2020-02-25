@@ -11,6 +11,7 @@ provider:
     environment:
       aircraftTableName: aircraft
       pollerTableName: pollerConfig
+      lastTrackTableName: lastTrack
       flightXmlAuth: ${self:custom.auth.flightXmlAuth}
     iamRoleStatements:
       - Effect: Allow
@@ -155,3 +156,17 @@ resources:
         ProvisionedThroughput:
           ReadCapacityUnits: 1
           WriteCapacityUnits: 1
+    LastTrackDbTable:
+      Type: 'AWS::DynamoDB::Table'
+      DeletionPolicy: Retain
+      Properties:
+        AttributeDefinitions:
+          - AttributeName: track
+            AttributeType: S
+        KeySchema:
+          - AttributeName: track
+            KeyType: HASH
+        TableName: ${self:provider:environment.lastTrackTableName}
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityunits: 1

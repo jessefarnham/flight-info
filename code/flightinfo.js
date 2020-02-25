@@ -1,9 +1,13 @@
+
 const AWS = require('aws-sdk');
 const https = require('https');
+const mockHistoricalTrackResult = require('mockHistoricalTrackResult');
+
 const dynamo = new AWS.DynamoDB.DocumentClient({region: 'us-east-1'});
 
 const aircraftTableName = process.env.aircraftTableName;
 const pollerTableName = process.env.pollerTableName;
+const lastTrackTableName = process.env.lastTrackTableName;
 const flightXmlAuth = process.env.flightXmlAuth;
 
 const maxMisses = 5;
@@ -13,6 +17,8 @@ const configKey = 'pollerConfig';
 const numMissesKey = 'numMisses';
 const activeTailNumberKey = 'activeTailNumber';
 const useMockFlightXmlKey = 'useMockFlightXml';
+const trackKey = 'track';
+const trackValue = 'latest';
 
 const epsilon = 1e-6;
 
@@ -56,7 +62,7 @@ const mockData = {
 
 const emptyMockData = {
     "InFlightInfoResult": {
-        "faFlightID": "",
+        "faFlightID": "N313EZ-1580587719-1-0-246",
         "ident": "N76616",
         "prefix": "",
         "type": "",
@@ -150,7 +156,7 @@ function _updateWithFlightXml(activeTailNumber, useMock, cb) {
             flightXmlResult = emptyMockData
         }
         console.log('Called mock flightXML, result=' + JSON.stringify(flightXmlResult));
-        postFlightXmlCallback(flightXmlResult.InFlightInfoResult, activeTailNumber, cb);
+        postFlightXmlCallback(flightXmlResult.InFlightInfoResult, activeTailNumber, useMock, cb);
     }
     else {
         const params = {
@@ -175,7 +181,7 @@ function _updateWithFlightXml(activeTailNumber, useMock, cb) {
                 result.on('end', function () {
                     console.log('Got data from FlightXml');
                     let flightXmlResult = JSON.parse(data);
-                    postFlightXmlCallback(flightXmlResult.InFlightInfoResult, activeTailNumber, cb)
+                    postFlightXmlCallback(flightXmlResult.InFlightInfoResult, activeTailNumber, useMock, cb)
                 })
             }
         });
@@ -193,7 +199,85 @@ function _checkStaleData(flightXmlResult, lastPayload) {
     }
 }
 
-function postFlightXmlCallback(flightXmlResult, activeTailNumber, cb) {
+function _saveLastTrack(payload, useMock, cb) {
+    let historicalTrackResult;
+    let err;
+    if (useMock) {
+        historicalTrackResult = mockHistoricalTrackResult;
+    }
+    else {
+        const params = {
+            host: 'flightxml.flightaware.com',
+            path: '/json/FlightXML2/GetHistoricalTrack?faFlightID=' + payload.faFlightID,
+            method: 'GET',
+            headers: {
+                Authorization: 'Basic ' + flightXmlAuth
+            }
+        };
+        let req = https.request(params, function(result) {
+            let data = '';
+            console.log('FlightXml GetHistoricalTrack status=' + result.statusCode);
+            if (result.statusCode !== 200) {
+                err = 'FlightXml GetHistoricalTrack returned status ' + result.statusCode;
+            }
+            else {
+                result.setEncoding('utf8');
+                result.on('data', function (chunk) {
+                    data += chunk;
+                });
+                result.on('end', function () {
+                    console.log('Got data from FlightXml GetHistoricalTrack');
+                    historicalTrackResult = JSON.parse(data);
+                    console.log(historicalTrackResult)
+                })
+            }
+        });
+        req.end();
+    }
+    if (err) {
+        cb(err)
+    }
+    else {
+        historicalTrackResult[trackKey] = trackValue;
+        dynamo.put({
+                Item: historicalTrackResult,
+                TableName: lastTrackTableName
+            },
+            cb
+        )
+    }
+}
+
+function _setToNotFlying(activeTailNumber, useMock, cb) {
+    dynamo.get(
+        {
+            Key: {
+                tailNumber: activeTailNumber
+            },
+            TableName: aircraftTableName
+        },
+        (err, lastPayload) => {
+            if (err) {
+                cb(err)
+            }
+            else {
+                let payload = lastPayload;
+                payload.isFlying = false;
+                let callback = function(err, _) {
+                    if (err){
+                        cb(err)
+                    }
+                    else {
+                        _saveLastTrack(payload, useMock, cb);
+                    }
+                };
+                _update(payload, callback)
+            }
+        }
+    )
+}
+
+function postFlightXmlCallback(flightXmlResult, activeTailNumber, useMock, cb) {
     dynamo.get(
         {
             Key: {
@@ -208,6 +292,7 @@ function postFlightXmlCallback(flightXmlResult, activeTailNumber, cb) {
             else {
                 let payload;
                 let numMissOperation;
+                let lastTrackOperation;
                 if (flightXmlResult.latitude && flightXmlResult.longitude) {
                     console.log('Aircraft is flying');
                     let stale = _checkStaleData(flightXmlResult, lastPayload);
@@ -217,15 +302,18 @@ function postFlightXmlCallback(flightXmlResult, activeTailNumber, cb) {
                         altitude: flightXmlResult.altitude,
                         heading: flightXmlResult.heading,
                         groundspeed: flightXmlResult.groundspeed,
-                        isStale: stale
+                        isStale: stale,
+                        faFlightID: flightXmlResult.faFlightID
                     };
-                    numMissOperation = _resetNumMisses
+                    numMissOperation = _resetNumMisses;
+                    lastTrackOperation = (payload, useMock, cb) => {cb(null, 'No track update needed.')};
                 }
                 else {
                     console.log('Aircraft not flying');
                     payload = {tailNumber: activeTailNumber, isFlying: false,
-                        lat: null, long: null};
-                    numMissOperation = _incrementNumMisses
+                        lat: null, long: null, faFlightID: flightXmlResult.faFlightID};
+                    numMissOperation = _incrementNumMisses;
+                    lastTrackOperation = _saveLastTrack;
                 }
                 let callback = function(err, _) {
                     if (err){
@@ -233,7 +321,14 @@ function postFlightXmlCallback(flightXmlResult, activeTailNumber, cb) {
                         cb(err)
                     }
                     else {
-                        numMissOperation(cb);
+                        numMissOperation((err, _) => {
+                            if (err) {
+                                cb(err)
+                            }
+                            else {
+                                lastTrackOperation(payload, useMock, cb)
+                            }
+                        });
                     }
                 };
                 _update(payload, callback)
@@ -330,7 +425,8 @@ function stopPolling(evt, ctx, cb) {
                         cb(err)
                     }
                     else {
-                        postFlightXmlCallback(emptyMockData, config[activeTailNumberKey], cb)
+                        _setToNotFlying(config[activeTailNumberKey],
+                            config[useMockFlightXmlKey], cb)
                     }
                 }, maxMisses)
             }
