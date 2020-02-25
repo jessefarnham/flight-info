@@ -16,6 +16,13 @@ const useMockFlightXmlKey = 'useMockFlightXml';
 
 const epsilon = 1e-6;
 
+const allowedEmailSenders = [
+    'Jesse Farnham <jessefarnham1@gmail.com>',
+    'FlightAware Alerts <alerts@flightaware.com>'
+];
+
+const startPollingSubjectPrefix = 'N76616 spotted in flight';
+const stopPollingSubjectPrefix = 'N76616 tracking stopped';
 
 const mockData = {
     "InFlightInfoResult": {
@@ -363,6 +370,22 @@ function setConfig(evt, ctx, cb) {
     )
 }
 
+function handleEmail(evt, ctx, cb) {
+    const mail = evt.Records[0].ses.mail;
+    console.log(mail);
+    const from = mail.commonHeaders.from[0];
+    const subject = mail.commonHeaders.subject;
+    if (allowedEmailSenders.includes(from) && subject.startsWith(startPollingSubjectPrefix)){
+        startPolling(evt, ctx, cb);
+    }
+    else if (allowedEmailSenders.includes(from) && subject.startsWith(stopPollingSubjectPrefix)) {
+        stopPolling(evt, ctx, cb);
+    }
+    else {
+        cb(null, {result: `No action taken; from=${from}, subject=${subject}`});
+    }
+}
+
 module.exports = {
     update,
     get,
@@ -372,6 +395,7 @@ module.exports = {
     setActiveTailNumber,
     startPolling,
     stopPolling,
-    setConfig
+    setConfig,
+    handleEmail
 };
 

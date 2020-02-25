@@ -102,6 +102,11 @@ functions:
             path: flightinfo/stop
             method: post
             cors: true
+    handleEmail:
+      memory: 512
+      timeout: 10
+      handler: code/flightinfo.handleEmail
+      runtime: nodejs12.x
     setConfig:
       memory: 512
       timeout: 10
@@ -115,6 +120,13 @@ functions:
 
 resources:
   Resources:
+    GiveSESPermissionToInvokeHandleEmailLambda:
+      Type: AWS::Lambda::Permission
+      Properties:
+        FunctionName: { 'Fn::GetAtt': [ 'HandleEmailLambdaFunction', 'Arn']}
+        Principal: ses.amazonaws.com
+        Action: 'lambda:InvokeFunction'
+        SourceAccount: {Ref: AWS::AccountId }
     AircraftDbTable:
       Type: 'AWS::DynamoDB::Table'
       DeletionPolicy: Retain
