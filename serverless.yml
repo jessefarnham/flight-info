@@ -25,6 +25,7 @@ provider:
         Resource:
           - {"Fn::GetAtt": ['AircraftDbTable', 'Arn']}
           - {"Fn::GetAtt": ['PollerDbTable', 'Arn']}
+          - {"Fn::GetAtt": ['LastTrackDbTable', 'Arn']}
 
 functions:
     updateFlightInfo:
