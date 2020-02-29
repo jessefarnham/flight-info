@@ -200,12 +200,12 @@ function _checkStaleData(flightXmlResult, lastPayload) {
 }
 
 function _saveLastTrack(payload, useMock, cb) {
-    let historicalTrackResult;
-    let err;
     if (useMock) {
-        historicalTrackResult = mockHistoricalTrackResult.mockResult;
+        let historicalTrackResult = mockHistoricalTrackResult.mockResult;
+        _postSaveLastTrackCallback(historicalTrackResult, null, cb)
     }
     else {
+        let err;
         const params = {
             host: 'flightxml.flightaware.com',
             path: '/json/FlightXML2/GetHistoricalTrack?faFlightID=' + payload.faFlightID,
@@ -216,7 +216,6 @@ function _saveLastTrack(payload, useMock, cb) {
         };
         let req = https.request(params, function(result) {
             let data = '';
-            console.log('FlightXml GetHistoricalTrack status=' + result.statusCode);
             if (result.statusCode !== 200) {
                 err = 'FlightXml GetHistoricalTrack returned status ' + result.statusCode;
             }
@@ -227,13 +226,17 @@ function _saveLastTrack(payload, useMock, cb) {
                 });
                 result.on('end', function () {
                     console.log('Got data from FlightXml GetHistoricalTrack');
-                    historicalTrackResult = JSON.parse(data);
-                    console.log(historicalTrackResult)
+                    let historicalTrackResult = JSON.parse(data);
+                    console.log(historicalTrackResult);
+                    _postSaveLastTrackCallback(historicalTrackResult, err, cb);
                 })
             }
         });
         req.end();
     }
+}
+
+function _postSaveLastTrackCallback(historicalTrackResult, err, cb) {
     if (err) {
         cb(err)
     }
@@ -243,8 +246,6 @@ function _saveLastTrack(payload, useMock, cb) {
             delete historicalTrackResult.GetHistoricalTrackResult.data[i].altitudeStatus;
             delete historicalTrackResult.GetHistoricalTrackResult.data[i].altitudeChange;
         }
-        console.log(JSON.stringify(historicalTrackResult));
-        console.log(lastTrackTableName);
         dynamo.put({
                 Item: historicalTrackResult,
                 TableName: lastTrackTableName
