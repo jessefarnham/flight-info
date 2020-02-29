@@ -254,6 +254,18 @@ function _saveLastTrack(payload, useMock, cb) {
     }
 }
 
+function getLastTrack(evt, ctx, cb) {
+    let dynamoKey = {};
+    dynamoKey[trackKey] = trackValue;
+    dynamo.get(
+        {
+            Key: dynamoKey,
+            TableName: lastTrackTableName
+        },
+        respondHttp(cb, function(resp) {return resp.Item})
+    )
+}
+
 function _setToNotFlying(activeTailNumber, useMock, cb) {
     dynamo.get(
         {
@@ -499,6 +511,7 @@ module.exports = {
     startPolling,
     stopPolling,
     setConfig,
-    handleEmail
+    handleEmail,
+    getLastTrack
 };
 

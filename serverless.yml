@@ -119,6 +119,16 @@ functions:
             path: flightinfo/config
             method: post
             cors: true
+    getLastTrack:
+      memory: 512
+      timeout: 10
+      handler: code/flightinfo.getLastTrack
+      runtime: nodejs12.x
+      events:
+        - http:
+            path: flightinfo/lasttrack
+            method: get
+            cors: true
 
 resources:
   Resources:
