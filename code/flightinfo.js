@@ -28,7 +28,8 @@ const allowedEmailSenders = [
 ];
 
 const startPollingSubjectPrefix = 'N76616 spotted in flight';
-const stopPollingSubjectPrefix = 'N76616 tracking stopped';
+const lostContactSubjectPrefix = 'N76616 tracking stopped';
+const arrivedSubjectPrefix = 'N76616 arrived';
 
 const mockData = {
     "InFlightInfoResult": {
@@ -494,7 +495,9 @@ function handleEmail(evt, ctx, cb) {
     if (allowedEmailSenders.includes(from) && subject.startsWith(startPollingSubjectPrefix)){
         startPolling(evt, ctx, cb);
     }
-    else if (allowedEmailSenders.includes(from) && subject.startsWith(stopPollingSubjectPrefix)) {
+    else if (allowedEmailSenders.includes(from) && (
+                subject.startsWith(lostContactSubjectPrefix) ||
+                subject.startsWith(arrivedSubjectPrefix))) {
         stopPolling(evt, ctx, cb);
     }
     else {
